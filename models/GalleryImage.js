@@ -1,9 +1,9 @@
-// models/GalleryImage.js
 import mongoose from 'mongoose';
 
 const GalleryImageSchema = new mongoose.Schema({
   url: { type: String, required: true },
-  key: { type: String, required: true }, // S3 object key for generating presigned URLs later
+  key: { type: String, required: true },
+  description: { type: String, default: '' },
   uploadedAt: { type: Date, default: Date.now }
 });
 

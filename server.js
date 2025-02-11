@@ -25,11 +25,13 @@ mongoose.connect(process.env.MONGO_URI, {
 import authRoutes from './routes/auth.js';
 import journalRoutes from './routes/journal.js';
 import galleryRoutes from './routes/gallery.js';
+import calendarRoutes from './routes/calendar.js';
 
 // Use routes (all routes are prefixed with /api)
 app.use('/api/auth', authRoutes);
 app.use('/api/journal', journalRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 5000;

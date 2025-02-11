@@ -17,3 +17,16 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+// routes/journal.js
+router.post('/', authMiddleware, async (req, res) => {
+    const { date, title, content } = req.body;
+    try {
+      const newEntry = new JournalEntry({ date, title, content });
+      await newEntry.save();
+      res.json(newEntry);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  

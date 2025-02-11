@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import aws from 'aws-sdk';
 import GalleryImage from '../models/GalleryImage.js';
 import authMiddleware from '../utils/authMiddleware.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const router = express.Router();
 
@@ -15,10 +17,33 @@ const upload = multer({ storage });
 // Configure AWS S3 using environment variables
 const s3 = new aws.S3({
   region: process.env.AWS_REGION,
+  endpoint: `https://s3.${process.env.AWS_REGION}.amazonaws.com`,
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  signatureVersion: 'v4' // Force the use of AWS4-HMAC-SHA256
 });
 
+router.get('/:id', authMiddleware, async (req, res) => {
+    try {
+      const image = await GalleryImage.findById(req.params.id);
+      if (!image) {
+        return res.status(404).json({ error: 'Image not found' });
+      }
+      
+      const signedUrl = await s3.getSignedUrlPromise('getObject', {
+        Bucket: process.env.BUCKET_NAME,
+        Key: image.key,
+        Expires: 60 * 60, // 1 hour validity
+        // Optionally include ResponseContentType if needed:
+        // ResponseContentType: image.contentType,
+      });
+      
+      res.json({ ...image.toObject(), url: signedUrl });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+    
 // GET /api/gallery - fetch images (protected)
 // This endpoint generates presigned URLs for each image so that only authenticated users can access them.
 router.get('/', authMiddleware, async (req, res) => {
@@ -27,10 +52,11 @@ router.get('/', authMiddleware, async (req, res) => {
     const presignedImages = await Promise.all(
       images.map(async (image) => {
         const signedUrl = await s3.getSignedUrlPromise('getObject', {
-          Bucket: process.env.BUCKET_NAME,
-          Key: image.key,
-          Expires: 60 * 60, // 1 hour validity
-        });
+            Bucket: process.env.BUCKET_NAME,
+            Key: image.key,
+            Expires: 60 * 60, // 1 hour validity
+            ResponseContentType: image.contentType, // Dynamically set based on stored MIME type
+          });          
         return { ...image.toObject(), url: signedUrl };
       })
     );
@@ -42,24 +68,25 @@ router.get('/', authMiddleware, async (req, res) => {
 
 // POST /api/gallery/upload - upload image to S3 and save URL & key (protected)
 router.post('/upload', authMiddleware, upload.single('image'), async (req, res) => {
-  const file = req.file;
-  const key = `${uuidv4()}-${file.originalname}`;
-  try {
-    const uploadResult = await s3.upload({
-      Bucket: process.env.BUCKET_NAME,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      // Do not set ACL if the bucket is private.
-    }).promise();
-
-    const newImage = new GalleryImage({ url: uploadResult.Location, key });
-    await newImage.save();
-    res.json(newImage);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    const file = req.file;
+    const key = `${uuidv4()}-${file.originalname}`;
+    const description = req.body.description || '';
+    try {
+      const uploadResult = await s3.upload({
+        Bucket: process.env.BUCKET_NAME,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }).promise();
+  
+      const newImage = new GalleryImage({ url: uploadResult.Location, key, description });
+      await newImage.save();
+      res.json(newImage);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
 
 // DELETE /api/gallery/:id - delete image (protected)
 router.delete('/:id', authMiddleware, async (req, res) => {
