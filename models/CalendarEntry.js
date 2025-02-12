@@ -1,3 +1,4 @@
+// models/CalendarEntry.js
 import mongoose from 'mongoose';
 
 const CalendarEntrySchema = new mongoose.Schema({

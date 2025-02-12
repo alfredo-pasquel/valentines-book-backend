@@ -1,3 +1,4 @@
+// models/GalleryImage.js
 import mongoose from 'mongoose';
 
 const GalleryImageSchema = new mongoose.Schema({
